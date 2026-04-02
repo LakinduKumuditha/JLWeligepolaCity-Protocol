@@ -1,17 +1,23 @@
 let recognition;
 let voices = [];
 let isWaitingForCity = false; 
+let isProcessing = false;
 
-// --- VOICE INITIALIZATION (KEEPING YOUR ORIGINAL LOGIC) ---
+// --- VOICE INITIALIZATION ---
 function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
+
 window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
 function speak(text) {
-    const status = document.getElementById("js_res");
-    status.innerText = "Jarvis: " + text;
+    const statusLabel = document.getElementById("js_res");
+    statusLabel.innerText = "Jarvis: " + text;
+
+    if (recognition) {
+        try { recognition.stop(); } catch(e) {}
+    }
 
     window.speechSynthesis.cancel(); 
     
@@ -28,9 +34,18 @@ function speak(text) {
     utterance.rate = 1.0;
     utterance.pitch = 1.2; 
     
+    utterance.onend = () => {
+        if (recognition && !isProcessing) {
+            try { 
+                recognition.start(); 
+            } catch(e) {
+                console.log("Mic restart ignored - already active.");
+            }
+        }
+    };
+
     window.speechSynthesis.speak(utterance);
 }
-
 const LOCAL_SERVER_IP = "http://192.168.1.10:3000"; 
 
 async function triggerWakeUp() {
@@ -56,7 +71,6 @@ function greeting() {
     const hour = new Date().getHours();
     let greeting;
 
-    // 2. Logic to decide the greeting
     if (hour >= 0 && hour < 12) {
         greeting = "Good Morning, Sir. All systems are online.";
     } else if (hour >= 12 && hour < 18) {
@@ -69,7 +83,6 @@ function greeting() {
 }
 
 window.onload = function() {
-    
     const accessCode = prompt("Biometric Scan Required. Enter Passcode:");
     
     if (accessCode !== "jarvis197777911981@@") { 
@@ -79,7 +92,6 @@ window.onload = function() {
         speak("Access granted. Welcome back, Sir.");
         requestWakeLock(); 
     }
-    
 }
 
 function requestWakeLock() {
@@ -99,7 +111,7 @@ function startListening() {
     if (!recognition) {
         recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
-        recognition.continuous = false; // Set to false to handle one command at a time
+        recognition.continuous = false; 
         recognition.interimResults = false;
 
         recognition.onstart = () => {
@@ -112,7 +124,6 @@ function startListening() {
             const transcript = event.results[0][0].transcript.toLowerCase();
             status.innerText = "You: " + transcript;
             
-            // Pass the text to the cloud logic
             handleLogic(transcript);
             document.getElementById("arc-reactor").classList.remove('active-pulse')
         };
@@ -124,16 +135,15 @@ function startListening() {
             }
         };
         
-        // THE "LISTENING NEED": Automatically restart the mic when it stops
         recognition.onend = () => {
-            console.log("Mic cycled. Restarting...");
-            setTimeout(() => {
-                try {
-                    recognition.start();
-                } catch (e) {
-                    // Mic might already be restarting
-                }
-            }, 1000);
+            if (!window.speechSynthesis.speaking && !isProcessing) {
+                console.log("Mic cycled. Restarting...");
+                setTimeout(() => {
+                    try {
+                        recognition.start();
+                    } catch (e) {}
+                }, 1000);
+            }
         };
     }
 
@@ -149,7 +159,6 @@ async function handleLogic(query) {
     const transcript = query.toLowerCase();
 
     if (transcript.includes("wake up pc") || transcript.includes("turn on workstation")) {
-        
         reactor.style.filter = "hue-rotate(180deg) brightness(2)";
         speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
 
@@ -173,10 +182,13 @@ async function postRequestJarvis(query) {
     const url = "https://lakinduKumuditha.pythonanywhere.com/send_command";
     const status = document.getElementById("js_res");
 
+    isProcessing = true;
+    if (recognition) try {recognition.stop();} catch(e) {}
+
     try {
         const response = await fetch(url, {
             method: "POST",
-            mode: "cors", // Allows PC-to-Cloud communication
+            mode: "cors",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ command: query })
         });
@@ -186,31 +198,46 @@ async function postRequestJarvis(query) {
             pollForResponse(); 
         } else {
             status.innerText = "Cloud Error: " + response.status;
+            isProcessing = false;
+            startListening();
         }
     } catch (error) {
         console.error("Post Error:", error);
         status.innerText = "Cloud connection failed.";
+        isProcessing = false;
+        startListening();
     }
 }
 
 async function pollForResponse() {
     const url = "https://lakinduKumuditha.pythonanywhere.com/get_response";
-    
-    document.getElementById("js_res").innerText = "Processing Sir"
+    const statLabel = document.getElementById("js_res");
+
+    if (isProcessing) {
+        statLabel.innerText = "Processing Sir...";
+    }
 
     try {
         const res = await fetch(url);
         const data = await res.json();
         
         const hasCommand = data.command && data.command !== "none" && data.command !== "processing...";
-        
         const isNotDebug = !data.command.toLowerCase().includes("debug") && !data.command.toLowerCase().includes("processing");
 
         if (hasCommand && isNotDebug) {
+            if (data.command.trim() === "false") {
+                console.log("Jarvis: Empty response received. Resetting system.");
+                isProcessing = false;
+                await resetCloudResponse();
+                statLabel.innerText = "Listening...";
+                startListening();
+                return;
+            }
             console.log("Jarvis says: " + data.command);
+            isProcessing = false;
             speak(data.command);
-            
-            await resetCloudResponse(); 
+            await resetCloudResponse();
+            return;
         }
 
         setTimeout(pollForResponse, 2000);
@@ -228,5 +255,3 @@ async function resetCloudResponse() {
         body: JSON.stringify({ text: "none" })
     });
 }
-
-
