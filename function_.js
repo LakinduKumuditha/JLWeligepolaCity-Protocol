@@ -3,7 +3,6 @@ let voices = [];
 let isWaitingForCity = false; 
 let isProcessing = false;
 
-// --- VOICE INITIALIZATION ---
 function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
@@ -46,7 +45,6 @@ function speak(text) {
     window.speechSynthesis.speak(utterance);
 }
 
-// --- BOOT LOGIC (The New Part) ---
 window.onload = function() {
     const initBtn = document.getElementById("init-button");
     const bootStatus = document.getElementById("boot-status");
@@ -58,7 +56,6 @@ window.onload = function() {
             document.body.innerHTML = "<h1>Access Denied. System Locked.</h1>";
             window.location.href = "https://google.com"; 
         } else {
-            // UNLOCK AUDIO: Android requires this first speak call on click
             window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
             
             bootStatus.innerText = "AUTHENTICATED. LOADING OS...";
@@ -76,7 +73,6 @@ window.onload = function() {
     }
 }
 
-// --- KEEPING YOUR ORIGINAL LOGIC UNCHANGED ---
 const LOCAL_SERVER_IP = "http://192.168.1.10:3000"; 
 
 async function triggerWakeUp() {
@@ -98,7 +94,7 @@ async function triggerWakeUp() {
 
 function greeting() {
     const hour = new Date().getHours();
-    let msg = (hour < 12) ? "Good Morning" : (hour < 18) ? "Good Afternoon" : "Good Evening";
+    let msg = (hour < 12) ? "Good Morning" : (hour < 16) ? "Good Afternoon" : (hour < 18) ? "Good Evening": "Good Night";
     speak(msg + ", Sir. All systems are online.");
 }
 
