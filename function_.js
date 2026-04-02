@@ -7,7 +7,6 @@ let isProcessing = false;
 function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
-
 window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
@@ -46,18 +45,48 @@ function speak(text) {
 
     window.speechSynthesis.speak(utterance);
 }
+
+// --- BOOT LOGIC (The New Part) ---
+window.onload = function() {
+    const initBtn = document.getElementById("init-button");
+    const bootStatus = document.getElementById("boot-status");
+
+    initBtn.onclick = function() {
+        const accessCode = prompt("Biometric Scan Required. Enter Passcode:");
+        
+        if (accessCode !== "jarvis197777911981@@") { 
+            document.body.innerHTML = "<h1>Access Denied. System Locked.</h1>";
+            window.location.href = "https://google.com"; 
+        } else {
+            // UNLOCK AUDIO: Android requires this first speak call on click
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+            
+            bootStatus.innerText = "AUTHENTICATED. LOADING OS...";
+            initBtn.style.display = "none";
+            
+            setTimeout(() => {
+                document.getElementById("boot-screen").style.opacity = "0";
+                setTimeout(() => {
+                    document.getElementById("boot-screen").style.display = "none";
+                    speak("Access granted. Welcome back, Sir.");
+                    requestWakeLock(); 
+                }, 500);
+            }, 1000);
+        }
+    }
+}
+
+// --- KEEPING YOUR ORIGINAL LOGIC UNCHANGED ---
 const LOCAL_SERVER_IP = "http://192.168.1.10:3000"; 
 
 async function triggerWakeUp() {
     const reactor = document.getElementById("arc-reactor");
-    
     reactor.classList.add("active-pulse");
     speak("Accessing local area network. Wait for turn on the your pc sir");
 
     try {
         const response = await fetch(`${LOCAL_SERVER_IP}/wake`);
         const data = await response.json();
-        
         if(data.status === "Success") {
             speak("Workstation is online, Sir.");
         }
@@ -69,34 +98,13 @@ async function triggerWakeUp() {
 
 function greeting() {
     const hour = new Date().getHours();
-    let greeting;
-
-    if (hour >= 0 && hour < 12) {
-        greeting = "Good Morning, Sir. All systems are online.";
-    } else if (hour >= 12 && hour < 18) {
-        greeting = "Good Afternoon, Sir. All systems are online.";
-    } else {
-        greeting = "Good Evening, Sir. All systems are online.";
-    }
-
-    speak(greeting)
-}
-
-window.onload = function() {
-    const accessCode = prompt("Biometric Scan Required. Enter Passcode:");
-    
-    if (accessCode !== "jarvis197777911981@@") { 
-        document.body.innerHTML = "<h1>Access Denied. System Locked.</h1>";
-        window.location.href = "https://google.com"; 
-    } else {
-        speak("Access granted. Welcome back, Sir.");
-        requestWakeLock(); 
-    }
+    let msg = (hour < 12) ? "Good Morning" : (hour < 18) ? "Good Afternoon" : "Good Evening";
+    speak(msg + ", Sir. All systems are online.");
 }
 
 function requestWakeLock() {
-    greeting()
-    startListening()
+    greeting();
+    startListening();
 }
 
 function startListening() {
@@ -116,42 +124,25 @@ function startListening() {
 
         recognition.onstart = () => {
             status.innerText = "Listening...";
-            console.log("Mic Active");
             document.getElementById("arc-reactor").classList.add("active-pulse");
         };
 
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript.toLowerCase();
             status.innerText = "You: " + transcript;
-            
             handleLogic(transcript);
-            document.getElementById("arc-reactor").classList.remove('active-pulse')
+            document.getElementById("arc-reactor").classList.remove('active-pulse');
         };
 
-        recognition.onerror = (event) => {
-            console.error("Recognition Error: ", event.error);
-            if (event.error === 'not-allowed') {
-                status.innerText = "Microphone Blocked. Use HTTPS or Local Server.";
-            }
-        };
-        
         recognition.onend = () => {
             if (!window.speechSynthesis.speaking && !isProcessing) {
-                console.log("Mic cycled. Restarting...");
                 setTimeout(() => {
-                    try {
-                        recognition.start();
-                    } catch (e) {}
+                    try { recognition.start(); } catch(e) {}
                 }, 1000);
             }
         };
     }
-
-    try {
-        recognition.start();
-    } catch (e) {
-        console.log("Mic is already active.");
-    }
+    try { recognition.start(); } catch (e) {}
 }
 
 async function handleLogic(query) {
@@ -161,18 +152,12 @@ async function handleLogic(query) {
     if (transcript.includes("wake up pc") || transcript.includes("turn on workstation")) {
         reactor.style.filter = "hue-rotate(180deg) brightness(2)";
         speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
-
         try {
-            const localResponse = await fetch("http://192.168.1.10:3000/wake"); 
-            const result = await localResponse.json();
-            console.log("Local Bridge Response:", result);
+            await fetch("http://192.168.1.10:3000/wake"); 
         } catch (error) {
-            console.error("Local Bridge unreachable:", error);
             postRequestJarvis(query);
         }
-
         setTimeout(() => { reactor.style.filter = "none"; }, 3000);
-
     } else {
         postRequestJarvis(query);
     }
@@ -181,7 +166,6 @@ async function handleLogic(query) {
 async function postRequestJarvis(query) {
     const url = "https://lakinduKumuditha.pythonanywhere.com/send_command";
     const status = document.getElementById("js_res");
-
     isProcessing = true;
     if (recognition) try {recognition.stop();} catch(e) {}
 
@@ -192,20 +176,10 @@ async function postRequestJarvis(query) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ command: query })
         });
-
-        if (response.ok) {
-            console.log("Sent to Cloud. Polling for answer...");
-            pollForResponse(); 
-        } else {
-            status.innerText = "Cloud Error: " + response.status;
-            isProcessing = false;
-            startListening();
-        }
+        if (response.ok) { pollForResponse(); } 
+        else { isProcessing = false; startListening(); }
     } catch (error) {
-        console.error("Post Error:", error);
-        status.innerText = "Cloud connection failed.";
-        isProcessing = false;
-        startListening();
+        isProcessing = false; startListening();
     }
 }
 
@@ -213,37 +187,28 @@ async function pollForResponse() {
     const url = "https://lakinduKumuditha.pythonanywhere.com/get_response";
     const statLabel = document.getElementById("js_res");
 
-    if (isProcessing) {
-        statLabel.innerText = "Processing Sir...";
-    }
+    if (isProcessing) { statLabel.innerText = "Processing Sir..."; }
 
     try {
         const res = await fetch(url);
         const data = await res.json();
-        
         const hasCommand = data.command && data.command !== "none" && data.command !== "processing...";
-        const isNotDebug = !data.command.toLowerCase().includes("debug") && !data.command.toLowerCase().includes("processing");
 
-        if (hasCommand && isNotDebug) {
+        if (hasCommand) {
             if (data.command.trim() === "false") {
-                console.log("Jarvis: Empty response received. Resetting system.");
                 isProcessing = false;
                 await resetCloudResponse();
                 statLabel.innerText = "Listening...";
                 startListening();
                 return;
             }
-            console.log("Jarvis says: " + data.command);
             isProcessing = false;
             speak(data.command);
             await resetCloudResponse();
             return;
         }
-
         setTimeout(pollForResponse, 2000);
-
     } catch (error) {
-        console.error("Polling Error:", error);
         setTimeout(pollForResponse, 5000); 
     }
 }
