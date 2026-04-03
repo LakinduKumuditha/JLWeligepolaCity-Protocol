@@ -162,64 +162,56 @@ function loadVoices() {
 }
 
 function getLocalResponse(query) {
-    if (typeof datasheet === 'undefined' || !datasheet) {
-        console.error("Datasheet missing");
-        return null;
-    }
+    if (typeof datasheet === 'undefined' || !datasheet) return null;
 
-    const userSpeech = query.toLowerCase().trim();
+    const processedInput = query.toLowerCase().trim();
 
     for (let i = 0; i < datasheet.length; i++) {
         let entry = datasheet[i];
-
-        if (!entry || !entry.questions || !entry.responses) continue;
+        if (!entry.questions) continue;
 
         for (let q = 0; q < entry.questions.length; q++) {
             let libraryQuestion = entry.questions[q].toLowerCase().trim();
 
-            if (userSpeech.indexOf(libraryQuestion) !== -1 || libraryQuestion.indexOf(userSpeech) !== -1) {
+            if (processedInput === libraryQuestion || 
+                processedInput.indexOf(libraryQuestion) !== -1 || 
+                libraryQuestion.indexOf(processedInput) !== -1) {
                 
                 const possibleReplies = entry.responses;
-                let randomIndex = Math.floor(Math.random() * possibleReplies.length);
-                let result = possibleReplies[randomIndex];
+                let result = possibleReplies[Math.floor(Math.random() * possibleReplies.length)];
 
-                if (result === "DINAMIC_TIME_CHECK" || result === "DYNAMIC_TIME_CHECK") {
+                if (result === "DYNAMIC_TIME_CHECK") {
                     const hour = new Date().getHours();
-                    if (hour >= 20 || hour < 5) {
-                        return "The hour is late, Sir. Efficiency drops after midnight.";
-                    } else {
-                        return "It is currently " + hour + " hundred hours. You are on schedule.";
-                    }
+                    return "It is " + hour + " hundred hours, Sir.";
                 }
 
                 return result;
             }
         }
     }
-    return null;
+    return null; 
 }
 
 async function handleLogic(query) {
     const reactor = document.getElementById("arc-reactor");
-    let transcript = sanitizeInput(query);
-
-    const response = getLocalResponse(transcript);
+    
+    const response = getLocalResponse(query);
 
     if (response) {
         speak(response);
     } 
-    else if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
-        reactor.style.filter = "hue-rotate(180deg) brightness(2)";
-        speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
-        
-        fetch("http://192.168.1.10:3000/wake").catch(err => {
-            postRequestJarvis(transcript);
-        });
-
-        setTimeout(() => { reactor.style.filter = "none"; }, 3000);
-    } 
     else {
-        postRequestJarvis(transcript);
+        let transcript = sanitizeInput(query);
+
+        if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
+            reactor.style.filter = "hue-rotate(180deg) brightness(2)";
+            speak("Powering up the workstation, Sir.");
+            fetch("http://192.168.1.10:3000/wake").catch(e => postRequestJarvis(transcript));
+            setTimeout(() => { reactor.style.filter = "none"; }, 3000);
+        } 
+        else {
+            postRequestJarvis(transcript);
+        }
     }
 }
 
