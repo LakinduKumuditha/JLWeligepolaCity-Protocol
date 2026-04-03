@@ -184,18 +184,13 @@ async function postRequestJarvis(query) {
 }
 
 async function pollForResponse() {
-    const timestamp = new Date().getTime();
-    const url = `https://lakinduKumuditha.pythonanywhere.com/get_response=${timestamp}`;
+    const url = "https://lakinduKumuditha.pythonanywhere.com/get_response";
     const statLabel = document.getElementById("js_res");
 
     if (isProcessing) { statLabel.innerText = "Processing Sir..."; }
 
     try {
-        const res = await fetch(url, {
-            method: "GET",
-            cache: "no-store",
-            headers: {"Content-Type": "application/json"}
-        });
+        const res = await fetch(url);
         const data = await res.json();
         const hasCommand = data.command && data.command !== "none" && data.command !== "processing...";
 
