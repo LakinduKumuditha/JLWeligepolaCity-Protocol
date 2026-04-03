@@ -228,11 +228,9 @@ function speak(text) {
 }
 
 function sanitizeInput(text) {
-    let clean = text.replace(/[^a-zA-Z0-9\s]/g, "");
-    
-    clean = clean.replace(/\s+/g, " ").trim();
-    
-    return clean.toLowerCase();
+    if (!text) return ""; 
+    let clean = text.toLowerCase().replace(/[^a-z0-9\s]/g, "");
+    return clean.replace(/\s+/g, " ").trim();
 }
 
 window.onload = function() {
