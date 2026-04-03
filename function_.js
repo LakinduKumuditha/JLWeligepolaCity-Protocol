@@ -6,6 +6,7 @@ let isProcessing = false;
 function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
+
 window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
@@ -215,4 +216,8 @@ async function resetCloudResponse() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "none" })
     });
+}
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service_worker.js');
 }
