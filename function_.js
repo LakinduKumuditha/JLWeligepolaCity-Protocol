@@ -170,12 +170,12 @@ function getLocalResponse(query) {
     for (let i = 0; i < datasheet.length; i++) {
         let entry = datasheet[i];
 
-        if (!entry || !entry.query || !entry.responses) {
+        if (!entry || !entry.questions || !entry.responses) {
             continue; 
         }
 
-        for (let q = 0; q < entry.query.length; q++) {
-            if (query.indexOf(entry.query[q]) !== -1) {
+        for (let q = 0; q < entry.questions.length; q++) {
+            if (query.indexOf(entry.questions[q]) !== -1) {
                 const possibleReplies = entry.responses;
                 
                 if (possibleReplies.length === 0) return null;
@@ -183,7 +183,7 @@ function getLocalResponse(query) {
                 let randomIndex = Math.floor(Math.random() * possibleReplies.length);
                 let result = possibleReplies[randomIndex];
 
-                if (result === "DYNAMIC_TIME_CHECK") {
+                if (result === "DINAMIC_TIME_CHECK" || result === "DYNAMIC_TIME_CHECK") {
                     const hour = new Date().getHours();
                     if (hour >= 20 || hour < 5) {
                         return "It is currently " + hour + " hundred hours. I strongly recommend some rest, Sir.";
@@ -197,6 +197,30 @@ function getLocalResponse(query) {
         }
     }
     return null;
+}
+
+async function handleLogic(query) {
+    const reactor = document.getElementById("arc-reactor");
+    let transcript = sanitizeInput(query);
+
+    const response = getLocalResponse(transcript);
+
+    if (response) {
+        speak(response);
+    } 
+    else if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
+        reactor.style.filter = "hue-rotate(180deg) brightness(2)";
+        speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
+        
+        fetch("http://192.168.1.10:3000/wake").catch(err => {
+            postRequestJarvis(transcript);
+        });
+
+        setTimeout(() => { reactor.style.filter = "none"; }, 3000);
+    } 
+    else {
+        postRequestJarvis(transcript);
+    }
 }
 
 window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -345,33 +369,6 @@ function startListening() {
         };
     }
     try { recognition.start(); } catch (e) {}
-}
-
-async function handleLogic(query) {
-    const reactor = document.getElementById("arc-reactor");
-    let transcript = sanitizeInput(query);
-
-    const response = getLocalResponse(transcript);
-
-    if (response) {
-        speak(response);
-    } 
-    else if (transcript.includes("wake up pc") || transcript.includes("turn on workstation")) {
-        reactor.style.filter = "hue-rotate(180deg) brightness(2)";
-        speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
-        
-        try {
-            const controller = new AbortController();
-            setTimeout(() => controller.abort(), 3000); 
-            await fetch("http://192.168.1.10:3000/wake", { signal: controller.signal }); 
-        } catch (error) {
-            postRequestJarvis(transcript);
-        }
-        setTimeout(() => { reactor.style.filter = "none"; }, 3000);
-    } 
-    else {
-        postRequestJarvis(transcript);
-    }
 }
 
 async function postRequestJarvis(query) {
