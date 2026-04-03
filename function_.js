@@ -106,7 +106,10 @@ function requestWakeLock() {
 
 function startListening() {
     const status = document.getElementById("js_res");
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || 
+                              window.webkitSpeechRecognition || 
+                              window.mozSpeechRecognition || 
+                              window.msSpeechRecognition;
 
     if (!SpeechRecognition) {
         status.innerText = "Browser not supported.";
