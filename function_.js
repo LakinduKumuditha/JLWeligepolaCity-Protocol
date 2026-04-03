@@ -164,19 +164,17 @@ function loadVoices() {
 function getLocalResponse(query) {
     if (typeof datasheet === 'undefined' || !datasheet) return null;
 
-    const processedInput = query.toLowerCase().trim();
+    const userSpeech = query.toLowerCase().replace(/[?.!]/g, "").trim();
 
     for (let i = 0; i < datasheet.length; i++) {
         let entry = datasheet[i];
         if (!entry.questions) continue;
 
         for (let q = 0; q < entry.questions.length; q++) {
-            let libraryQuestion = entry.questions[q].toLowerCase().trim();
+            // Remove punctuation from the DATASHEET side too
+            let libraryQuestion = entry.questions[q].toLowerCase().replace(/[?.!]/g, "").trim();
 
-            if (processedInput === libraryQuestion || 
-                processedInput.indexOf(libraryQuestion) !== -1 || 
-                libraryQuestion.indexOf(processedInput) !== -1) {
-                
+            if (userSpeech === libraryQuestion || userSpeech.indexOf(libraryQuestion) !== -1) {
                 const possibleReplies = entry.responses;
                 let result = possibleReplies[Math.floor(Math.random() * possibleReplies.length)];
 
@@ -184,11 +182,11 @@ function getLocalResponse(query) {
                     const hour = new Date().getHours();
                     return "It is " + hour + " hundred hours, Sir.";
                 }
-
                 return result;
             }
         }
     }
+  
     return null; 
 }
 
@@ -210,7 +208,24 @@ async function handleLogic(query) {
             setTimeout(() => { reactor.style.filter = "none"; }, 3000);
         } 
         else {
-            postRequestJarvis(transcript);
+            const cloudController = new AbortController();
+            const timeoutId = setTimeout(() => {
+                cloudController.abort();
+                speak("Sir, the cloud server is not responding. Operating on local protocols.");
+            }, 8000); 
+
+            try {
+                await postRequestJarvis(transcript, cloudController.signal);
+                clearTimeout(timeoutId); 
+            } catch (err) {
+                clearTimeout(timeoutId); 
+                if (err.name === 'AbortError') {
+                    console.error("PythonAnywhere Timeout: Request aborted.");
+                } else {
+                    console.error("Connection Error:", err);
+                    speak("Sir, a connection error occurred with the cloud link.");
+                }
+            }
         }
     }
 }
