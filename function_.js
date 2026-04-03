@@ -121,7 +121,7 @@ const datasheet = [
         questions: ["is it late", "should i sleep", "time to work", "time"],
         responses: [
             "The hour is late, Sir. Efficiency drops after midnight.",
-            "DINAMIC_TIME_CHECK",
+            "DYNAMIC_TIME_CHECK",
             "According to the clock, you are right on schedule."
         ]
     },
@@ -163,32 +163,32 @@ function loadVoices() {
 
 function getLocalResponse(query) {
     if (typeof datasheet === 'undefined' || !datasheet) {
-        console.error("Datasheet is missing!");
+        console.error("Datasheet missing");
         return null;
     }
+
+    const userSpeech = query.toLowerCase().trim();
 
     for (let i = 0; i < datasheet.length; i++) {
         let entry = datasheet[i];
 
-        if (!entry || !entry.questions || !entry.responses) {
-            continue; 
-        }
+        if (!entry || !entry.questions || !entry.responses) continue;
 
         for (let q = 0; q < entry.questions.length; q++) {
-            if (query.indexOf(entry.questions[q]) !== -1) {
-                const possibleReplies = entry.responses;
-                
-                if (possibleReplies.length === 0) return null;
+            let libraryQuestion = entry.questions[q].toLowerCase().trim();
 
+            if (userSpeech.indexOf(libraryQuestion) !== -1 || libraryQuestion.indexOf(userSpeech) !== -1) {
+                
+                const possibleReplies = entry.responses;
                 let randomIndex = Math.floor(Math.random() * possibleReplies.length);
                 let result = possibleReplies[randomIndex];
 
                 if (result === "DINAMIC_TIME_CHECK" || result === "DYNAMIC_TIME_CHECK") {
                     const hour = new Date().getHours();
                     if (hour >= 20 || hour < 5) {
-                        return "It is currently " + hour + " hundred hours. I strongly recommend some rest, Sir.";
+                        return "The hour is late, Sir. Efficiency drops after midnight.";
                     } else {
-                        return "It is only " + hour + " hundred hours. If you need a break, let's head into that.";
+                        return "It is currently " + hour + " hundred hours. You are on schedule.";
                     }
                 }
 
