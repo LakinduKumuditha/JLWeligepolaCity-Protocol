@@ -162,22 +162,33 @@ function loadVoices() {
 }
 
 function getLocalResponse(query) {
+    if (typeof datasheet === 'undefined' || !datasheet) {
+        console.error("Datasheet is missing!");
+        return null;
+    }
+
     for (let i = 0; i < datasheet.length; i++) {
         let entry = datasheet[i];
 
+        if (!entry || !entry.query || !entry.responses) {
+            continue; 
+        }
+
         for (let q = 0; q < entry.query.length; q++) {
-            if (query.includes(entry.query[q])) {
+            if (query.indexOf(entry.query[q]) !== -1) {
                 const possibleReplies = entry.responses;
                 
-                let result = possibleReplies[Math.floor(Math.random() * possibleReplies.length)];
+                if (possibleReplies.length === 0) return null;
+
+                let randomIndex = Math.floor(Math.random() * possibleReplies.length);
+                let result = possibleReplies[randomIndex];
 
                 if (result === "DYNAMIC_TIME_CHECK") {
                     const hour = new Date().getHours();
-
                     if (hour >= 20 || hour < 5) {
                         return "It is currently " + hour + " hundred hours. I strongly recommend some rest, Sir.";
                     } else {
-                        return "It is only " + hour + " hundred hours. If you need to get a break let's head into that.";
+                        return "It is only " + hour + " hundred hours. If you need a break, let's head into that.";
                     }
                 }
 
