@@ -229,7 +229,11 @@ function speak(text) {
 
 function sanitizeInput(text) {
     if (!text) return ""; 
-    let clean = text.toLowerCase().replace(/[^a-z0-9\s]/g, "");
+    
+    let clean = text.toLowerCase();
+    
+    clean = clean.replace(/[!?.,@#]/g, "");
+    
     return clean.replace(/\s+/g, " ").trim();
 }
 
