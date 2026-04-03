@@ -183,62 +183,34 @@ async function postRequestJarvis(query) {
     }
 }
 
-function pollForResponse() {
+async function pollForResponse() {
+    const url = "https://lakinduKumuditha.pythonanywhere.com/get_response";
     const statLabel = document.getElementById("js_res");
-    
-    // 1. Cache-Buster: Adding a unique timestamp prevents the old phone 
-    // from showing you 'old' data from its memory.
-    const timestamp = new Date().getTime();
-    const url = "https://lakinduKumuditha.pythonanywhere.com/get_response?t=" + timestamp;
 
-    if (isProcessing) { 
-        statLabel.innerText = "Processing Sir..."; 
-    }
+    if (isProcessing) { statLabel.innerText = "Processing Sir..."; }
 
-    // 2. Using XHR instead of Fetch for Android 5.1.1 stability
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-    
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) { // Request is finished
-            if (xhr.status === 200) {
-                try {
-                    var data = JSON.parse(xhr.responseText);
-                    
-                    const hasCommand = data.command && 
-                                      data.command !== "none" && 
-                                      data.command !== "processing...";
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const hasCommand = data.command && data.command !== "none" && data.command !== "processing...";
 
-                    if (hasCommand) {
-                        if (data.command.trim() === "false") {
-                            isProcessing = false;
-                            resetCloudResponse(); // Call the reset
-                            statLabel.innerText = "Listening...";
-                            startListening();
-                            return;
-                        }
-                        
-                        isProcessing = false;
-                        speak(data.command);
-                        resetCloudResponse(); // Call the reset
-                        return;
-                    }
-                    
-                    // No command yet? Wait 2 seconds and try again
-                    setTimeout(pollForResponse, 2000);
-                    
-                } catch (e) {
-                    console.error("JSON Parse Error on J1", e);
-                    setTimeout(pollForResponse, 5000);
-                }
-            } else {
-                // If server is down or connection lost, wait 5 seconds
-                setTimeout(pollForResponse, 5000);
+        if (hasCommand) {
+            if (data.command.trim() === "false") {
+                isProcessing = false;
+                await resetCloudResponse();
+                statLabel.innerText = "Listening...";
+                startListening();
+                return;
             }
+            isProcessing = false;
+            speak(data.command);
+            await resetCloudResponse();
+            return;
         }
-    };
-
-    xhr.send();
+        setTimeout(pollForResponse, 2000);
+    } catch (error) {
+        setTimeout(pollForResponse, 5000); 
+    }
 }
 
 async function resetCloudResponse() {
