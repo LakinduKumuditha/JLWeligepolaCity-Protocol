@@ -118,7 +118,7 @@ const datasheet = [
         ]
     },
     {
-        questions: ["is it late", "should i sleep", "time to work"],
+        questions: ["is it late", "should i sleep", "time to work", "time"],
         responses: [
             "The hour is late, Sir. Efficiency drops after midnight.",
             "DINAMIC_TIME_CHECK",
@@ -168,9 +168,10 @@ function getLocalResponse(query) {
         for (let q = 0; q < entry.query.length; q++) {
             if (query.includes(entry.query[q])) {
                 const possibleReplies = entry.responses;
-                result = possibleReplies[Math.floor(Math.random() * possibleReplies)];
+                
+                let result = possibleReplies[Math.floor(Math.random() * possibleReplies.length)];
 
-                if (result === "DINAMIC_TIME_CHECK") {
+                if (result === "DYNAMIC_TIME_CHECK") {
                     const hour = new Date().getHours();
 
                     if (hour >= 20 || hour < 5) {
@@ -335,27 +336,28 @@ function startListening() {
 
 async function handleLogic(query) {
     const reactor = document.getElementById("arc-reactor");
-    const transcript = query.toLowerCase();
-    transcript = sanitizeInput(query);
+    let transcript = sanitizeInput(query);
 
-    const response = getLocalResponse(transcript)
-
-    if (transcript.includes("wake up pc") || transcript.includes("turn on workstation")) {
-        reactor.style.filter = "hue-rotate(180deg) brightness(2)";
-        speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
-        try {
-            await fetch("http://192.168.1.10:3000/wake"); 
-        } catch (error) {
-            postRequestJarvis(query);
-        }
-        setTimeout(() => { reactor.style.filter = "none"; }, 3000);
-    }
+    const response = getLocalResponse(transcript);
 
     if (response) {
-        speak(response)
-    }
+        speak(response);
+    } 
+    else if (transcript.includes("wake up pc") || transcript.includes("turn on workstation")) {
+        reactor.style.filter = "hue-rotate(180deg) brightness(2)";
+        speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
+        
+        try {
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 3000); 
+            await fetch("http://192.168.1.10:3000/wake", { signal: controller.signal }); 
+        } catch (error) {
+            postRequestJarvis(transcript);
+        }
+        setTimeout(() => { reactor.style.filter = "none"; }, 3000);
+    } 
     else {
-        postRequestJarvis(query);
+        postRequestJarvis(transcript);
     }
 }
 
