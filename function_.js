@@ -1,9 +1,9 @@
-let recognition;
-let voices = [];
-let isWaitingForCity = false; 
-let isProcessing = false;
+var recognition;
+var voices = [];
+var LOCAL_SERVER_IP = "http://192.168.1.10:3000";
+var isProcessing = false;
 
-const datasheet = [
+var datasheet = [
     {
         questions: ["who are you", "what is your name", "identify yourself", "who am i speaking to", "your name"],
         responses: [
@@ -161,191 +161,130 @@ function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
 
-function getLocalResponse(query) {
-    if (typeof datasheet === 'undefined' || !datasheet) return null;
-
-    const userSpeech = query.toLowerCase().replace(/[?.!]/g, "").trim();
-
-    for (let i = 0; i < datasheet.length; i++) {
-        let entry = datasheet[i];
-        if (!entry.questions) continue;
-
-        for (let q = 0; q < entry.questions.length; q++) {
-            // Remove punctuation from the DATASHEET side too
-            let libraryQuestion = entry.questions[q].toLowerCase().replace(/[?.!]/g, "").trim();
-
-            if (userSpeech === libraryQuestion || userSpeech.indexOf(libraryQuestion) !== -1) {
-                const possibleReplies = entry.responses;
-                let result = possibleReplies[Math.floor(Math.random() * possibleReplies.length)];
-
-                if (result === "DYNAMIC_TIME_CHECK") {
-                    const hour = new Date().getHours();
-                    return "It is " + hour + " hundred hours, Sir.";
-                }
-                return result;
-            }
-        }
-    }
-  
-    return null; 
+if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
 }
-
-async function handleLogic(query) {
-    const reactor = document.getElementById("arc-reactor");
-    
-    const response = getLocalResponse(query);
-
-    if (response) {
-        speak(response);
-    } 
-    else {
-        let transcript = sanitizeInput(query);
-
-        if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
-            reactor.style.filter = "hue-rotate(180deg) brightness(2)";
-            speak("Powering up the workstation, Sir.");
-            fetch("http://192.168.1.10:3000/wake").catch(e => postRequestJarvis(transcript));
-            setTimeout(() => { reactor.style.filter = "none"; }, 3000);
-        } 
-        else {
-            const cloudController = new AbortController();
-            const timeoutId = setTimeout(() => {
-                cloudController.abort();
-                speak("Sir, the cloud server is not responding. Operating on local protocols.");
-            }, 8000); 
-
-            try {
-                await postRequestJarvis(transcript, cloudController.signal);
-                clearTimeout(timeoutId); 
-            } catch (err) {
-                clearTimeout(timeoutId); 
-                if (err.name === 'AbortError') {
-                    console.error("PythonAnywhere Timeout: Request aborted.");
-                } else {
-                    console.error("Connection Error:", err);
-                    speak("Sir, a connection error occurred with the cloud link.");
-                }
-            }
-        }
-    }
-}
-
-window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
 function speak(text) {
-    const statusLabel = document.getElementById("js_res");
-    statusLabel.innerText = "Jarvis: " + text;
+    if (text === "DYNAMIC_TIME_CHECK") {
+        var now = new Date();
+        text = "It is " + now.getHours() + " hours and " + now.getMinutes() + " minutes, Sir.";
+    }
+
+    var statusLabel = document.getElementById("js_res");
+    if(statusLabel) statusLabel.innerText = "Jarvis: " + text;
 
     if (recognition) {
         try { recognition.stop(); } catch(e) {}
     }
 
     window.speechSynthesis.cancel(); 
+    var utterance = new SpeechSynthesisUtterance(text);
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    const femaleVoice = voices.find(voice => 
-        voice.name.includes('Google UK English Female') || 
-        voice.name.includes('Female') || 
-        voice.name.includes('Zira')
-    );
+    var femaleVoice = voices.filter(function(v) { 
+        return v.name.indexOf('Female') > -1 || v.name.indexOf('UK') > -1 || v.name.indexOf('Google') > -1; 
+    })[0];
 
     if (femaleVoice) utterance.voice = femaleVoice;
-    
     utterance.rate = 1.0;
-    utterance.pitch = 1.2; 
+    utterance.pitch = 1.1; 
     
-    utterance.onend = () => {
-        if (recognition && !isProcessing) {
-            try { 
-                recognition.start(); 
-            } catch(e) {
-                console.log("Mic restart ignored - already active.");
-            }
-        }
+    utterance.onend = function() {
+        setTimeout(function() {
+            if (!isProcessing) startListening();
+        }, 1500);
     };
 
     window.speechSynthesis.speak(utterance);
 }
 
-function sanitizeInput(text) {
-    if (!text) return ""; 
-    
-    let clean = text.toLowerCase();
-    
-    clean = clean.replace(/[!?.,@#]/g, "");
-    
-    return clean.replace(/\s+/g, " ").trim();
+function ajaxRequest(method, url, data, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try { callback(JSON.parse(xhr.responseText)); } catch(e) { callback(null); }
+            } else {
+                isProcessing = false;
+                startListening();
+            }
+        }
+    };
+    xhr.send(data ? JSON.stringify(data) : null);
 }
 
-window.onload = function() {
-    const initBtn = document.getElementById("init-button");
-    const bootStatus = document.getElementById("boot-status");
+function handleLogic(query) {
+    var transcript = query.toLowerCase().replace(/[!?.,@#]/g, "").trim();
+    
+    if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
+        triggerWakeUp();
+        return;
+    }
 
-    initBtn.onclick = function() {
-        const accessCode = prompt("Biometric Scan Required. Enter Passcode:");
-        
-        if (accessCode !== "jarvis197777911981@@") { 
-            document.body.innerHTML = "<h1>Access Denied. System Locked.</h1>";
-            window.location.href = "https://google.com"; 
-        } else {
-            window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
-            
-            bootStatus.innerText = "AUTHENTICATED. LOADING OS...";
-            initBtn.style.display = "none";
-            
-            setTimeout(() => {
-                document.getElementById("boot-screen").style.opacity = "0";
-                setTimeout(() => {
-                    document.getElementById("boot-screen").style.display = "none";
-                    speak("Access granted. Welcome back, Sir.");
-                    requestWakeLock(); 
-                }, 500);
-            }, 1000);
+    var response = null;
+    for (var i = 0; i < datasheet.length; i++) {
+        var entry = datasheet[i];
+        for (var q = 0; q < entry.questions.length; q++) {
+            if (transcript.indexOf(entry.questions[q]) !== -1) {
+                response = entry.responses[Math.floor(Math.random() * entry.responses.length)];
+                break;
+            }
         }
+        if (response) break;
+    }
+
+    if (response) {
+        speak(response);
+    } else {
+        isProcessing = true;
+        var statusLabel = document.getElementById("js_res");
+        if(statusLabel) statusLabel.innerText = "Jarvis: Transmitting to Cloud...";
+        ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/send_command", {command: transcript}, function() {
+            pollForResponse();
+        });
     }
 }
 
-const LOCAL_SERVER_IP = "http://192.168.1.10:3000"; 
+function pollForResponse() {
+    if (!isProcessing) return;
+    ajaxRequest("GET", "https://lakinduKumuditha.pythonanywhere.com/get_response", null, function(data) {
+        if (data && data.command && data.command !== "none" && data.command !== "processing...") {
+            isProcessing = false;
+            if (data.command.trim() !== "false") {
+                speak(data.command);
+            }
+            ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_jarvis", {text: "none"}, function(){});
+        } else {
+            setTimeout(pollForResponse, 3000);
+        }
+    });
+}
 
-async function triggerWakeUp() {
-    const reactor = document.getElementById("arc-reactor");
-    reactor.classList.add("active-pulse");
-    speak("Accessing local area network. Wait for turn on the your pc sir");
+function triggerWakeUp() {
+    var reactor = document.getElementById("arc-reactor");
+    if(reactor) reactor.style.filter = "hue-rotate(180deg) brightness(2)";
+    speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
 
-    try {
-        const response = await fetch(`${LOCAL_SERVER_IP}/wake`);
-        const data = await response.json();
-        if(data.status === "Success") {
+    ajaxRequest("GET", LOCAL_SERVER_IP + "/wake", null, function(data) {
+        if(data && data.status === "Success") {
             speak("Workstation is online, Sir.");
         }
-    } catch (error) {
-        console.error("Local Network Error:", error);
-        speak("Sir, I cannot reach the local server. Is the bridge active?");
-    }
-}
-
-function greeting() {
-    const hour = new Date().getHours();
-    let msg = (hour < 12) ? "Good Morning" : (hour < 16) ? "Good Afternoon" : (hour < 18) ? "Good Evening": "Good Night";
-    speak(msg + ", Sir. All systems are online.");
-}
-
-function requestWakeLock() {
-    greeting();
-    startListening();
+        setTimeout(function() { if(reactor) reactor.style.filter = "none"; }, 3000);
+    });
 }
 
 function startListening() {
-    const status = document.getElementById("js_res");
-    const SpeechRecognition = window.SpeechRecognition || 
-                              window.webkitSpeechRecognition || 
-                              window.mozSpeechRecognition || 
-                              window.msSpeechRecognition;
+    var status = document.getElementById("js_res");
+    var SpeechRecognition = window.SpeechRecognition || 
+                            window.webkitSpeechRecognition || 
+                            window.mozSpeechRecognition || 
+                            window.msSpeechRecognition;
 
     if (!SpeechRecognition) {
-        status.innerText = "Browser not supported.";
+        if(status) status.innerText = "Speech not supported.";
         return;
     }
 
@@ -353,88 +292,48 @@ function startListening() {
         recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
         recognition.continuous = false; 
-        recognition.interimResults = false;
 
-        recognition.onstart = () => {
-            status.innerText = "Listening...";
-            document.getElementById("arc-reactor").classList.add("active-pulse");
+        recognition.onstart = function() {
+            if(status) status.innerText = "Listening...";
+            var reactor = document.getElementById("arc-reactor");
+            if(reactor) reactor.className = "active-pulse";
         };
 
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript.toLowerCase();
-            status.innerText = "You: " + transcript;
+        recognition.onresult = function(event) {
+            var transcript = event.results[0][0].transcript;
+            if(status) status.innerText = "You: " + transcript;
             handleLogic(transcript);
-            document.getElementById("arc-reactor").classList.remove('active-pulse');
         };
 
-        recognition.onend = () => {
-            if (!window.speechSynthesis.speaking && !isProcessing) {
-                setTimeout(() => {
-                    try { recognition.start(); } catch(e) {}
-                }, 1000);
+        recognition.onend = function() {
+            var reactor = document.getElementById("arc-reactor");
+            if(reactor) reactor.className = "";
+            if (!isProcessing && !window.speechSynthesis.speaking) {
+                setTimeout(startListening, 1000);
             }
         };
     }
-    try { recognition.start(); } catch (e) {}
+    try { recognition.start(); } catch(e) {}
 }
 
-async function postRequestJarvis(query) {
-    const url = "https://lakinduKumuditha.pythonanywhere.com/send_command";
-    const status = document.getElementById("js_res");
-    isProcessing = true;
-    if (recognition) try {recognition.stop();} catch(e) {}
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            mode: "cors",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ command: query })
-        });
-        if (response.ok) { pollForResponse(); } 
-        else { isProcessing = false; startListening(); }
-    } catch (error) {
-        isProcessing = false; startListening();
-    }
-}
-
-async function pollForResponse() {
-    const url = "https://lakinduKumuditha.pythonanywhere.com/get_response";
-    const statLabel = document.getElementById("js_res");
-
-    if (isProcessing) { statLabel.innerText = "Processing Sir..."; }
-
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
-        const hasCommand = data.command && data.command !== "none" && data.command !== "processing...";
-
-        if (hasCommand) {
-            if (data.command.trim() === "false") {
-                isProcessing = false;
-                await resetCloudResponse();
-                statLabel.innerText = "Listening...";
-                startListening();
-                return;
-            }
-            isProcessing = false;
-            speak(data.command);
-            await resetCloudResponse();
-            return;
+window.onload = function() {
+    var initBtn = document.getElementById("init-button");
+    initBtn.onclick = function() {
+        var accessCode = prompt("Biometric Scan Required. Enter Passcode:");
+        if (accessCode === "jarvis197777911981@@") {
+            initBtn.style.display = "none";
+            var bootScreen = document.getElementById("boot-screen");
+            if(bootScreen) bootScreen.style.display = "none";
+            
+            var hour = new Date().getHours();
+            var msg = (hour < 12) ? "Good Morning" : (hour < 16) ? "Good Afternoon" : (hour < 18) ? "Good Evening": "Good Night";
+            speak(msg + ", Sir. Access granted. All systems are online.");
+            
+        } else {
+            alert("Access Denied.");
         }
-        setTimeout(pollForResponse, 2000);
-    } catch (error) {
-        setTimeout(pollForResponse, 5000); 
-    }
-}
-
-async function resetCloudResponse() {
-    await fetch("https://lakinduKumuditha.pythonanywhere.com/update_jarvis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "none" })
-    });
-}
+    };
+};
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service_worker.js');
