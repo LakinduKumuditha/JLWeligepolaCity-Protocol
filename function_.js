@@ -181,7 +181,7 @@ function speak(text) {
     var utterance = new SpeechSynthesisUtterance(text);
     
     // Pick a sophisticated voice
-    var jarvisVoice = voices.find(v => v.name.includes('UK English Male') || v.name.includes('Google UK')) || voices[0];
+    var jarvisVoice = voices.find(v => v.name.includes('UK English Female') || v.name.includes('Google UK')) || voices[0];
     if (jarvisVoice) utterance.voice = jarvisVoice;
     
     utterance.rate = 0.9;
@@ -196,6 +196,7 @@ function speak(text) {
 
 function sendLocationToJarvis() {
     if (navigator.geolocation) {
+        console.log("Acquiring GPS lock...");
         navigator.geolocation.getCurrentPosition(
             function(position) {
                 var lat = position.coords.latitude;
@@ -203,17 +204,24 @@ function sendLocationToJarvis() {
                 
                 ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", 
                     {lat: lat, lon: lon}, function(data) {
-                        console.log("GPS Link Established, Sir.");
+                        console.log("Satellite link confirmed. Coordinates synced, Sir.");
                     }
                 );
             },
             function(error) {
-                console.error("GPS Error: ", error.message);
+                console.warn("GPS Error: " + error.code + " - " + error.message);
+                // Sir, if the J1 takes too long, we use this fallback
+                if (error.code === error.TIMEOUT) {
+                    console.log("GPS Timeout. Retrying with lower accuracy...");
+                    // Try one more time with low accuracy (faster for old phones)
+                    navigator.geolocation.getCurrentPosition(function(pos){
+                        ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", {lat: pos.coords.latitude, lon: pos.coords.longitude}, function(){});
+                    }, null, {enableHighAccuracy: false});
+                }
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            // Increased timeout to 15 seconds because older hardware is slow
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
-    } else {
-        speak("Sir, this device does not support satellite positioning.");
     }
 }
 
