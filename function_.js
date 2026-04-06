@@ -180,8 +180,12 @@ function speak(text) {
     window.speechSynthesis.cancel(); 
     var utterance = new SpeechSynthesisUtterance(text);
     
-    // Pick a sophisticated voice
-    var jarvisVoice = voices.find(v => v.name.includes('UK English Female') || v.name.includes('Google UK')) || voices[0];
+    var jarvisVoice = voices.find(function(v) {
+        return (v.name.includes('Female') || 
+                v.name.includes('UK English') || 
+                v.name.includes('Google UK English')) && 
+                v.lang.includes('en');
+    }) || voices[0]; 
     if (jarvisVoice) utterance.voice = jarvisVoice;
     
     utterance.rate = 0.9;
