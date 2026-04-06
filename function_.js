@@ -268,7 +268,6 @@ function handleLogic(query) {
     var transcript = query.toLowerCase().trim();
     var response = null;
 
-    // Local Datasheet Search
     for (var i = 0; i < datasheet.length; i++) {
         for (var q = 0; q < datasheet[i].questions.length; q++) {
             if (transcript.includes(datasheet[i].questions[q])) {
@@ -283,7 +282,7 @@ function handleLogic(query) {
     } else {
         // Hand off to PythonAnywhere Cloud
         isProcessing = true;
-        document.getElementById("js_res").innerText = "Jarvis: Consulting Sith-ka-lu AI...";
+        document.getElementById("js_res").innerText = "Jarvis: Sending The request to Brain Sir";
         ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/send_command", {command: transcript}, function() {
             pollForResponse();
         });
@@ -348,7 +347,9 @@ window.onload = function() {
             sendLocationToJarvis();
 
             var hour = new Date().getHours();
-            var greeting = (hour < 12) ? "Good Morning" : (hour < 18) ? "Good Afternoon" : "Good Evening";
+            var greeting = (hour < 12) ? "Good Morning" : 
+               (hour < 18) ? "Good Afternoon" : 
+               (hour < 22) ? "Good Evening" : "Good Night";
             speak(greeting + ", Sir. Access granted. All systems online.");
         } else {
             alert("Access Denied.");
