@@ -216,6 +216,21 @@ function ajaxRequest(method, url, data, callback) {
     xhr.send(data ? JSON.stringify(data) : null);
 }
 
+function sendLocationToJarvis() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            
+            ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", 
+                {lat: lat, lon: lon}, function(data) {
+                    console.log("Location updated, Sir.");
+                }
+            );
+        });
+    }
+}
+
 function handleLogic(query) {
     var transcript = query.toLowerCase().replace(/[!?.,@#]/g, "").trim();
     
@@ -324,6 +339,8 @@ window.onload = function() {
             initBtn.style.display = "none";
             var bootScreen = document.getElementById("boot-screen");
             if(bootScreen) bootScreen.style.display = "none";
+
+            sendLocationToJarvis();
             
             var hour = new Date().getHours();
             var msg = (hour < 12) ? "Good Morning" : (hour < 16) ? "Good Afternoon" : (hour < 18) ? "Good Evening": "Good Night";
