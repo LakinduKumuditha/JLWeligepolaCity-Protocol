@@ -196,11 +196,20 @@ function speak(text) {
 
 function sendLocationToJarvis() {
     if (navigator.geolocation) {
-        console.log("Acquiring GPS lock...");
+        console.log("Acquiring GPS lock... System optimized for legacy hardware.");
+        
+        var locationOptions = { 
+            enableHighAccuracy: false, 
+            timeout: 30000,            
+            maximumAge: 60000        
+        };
+
         navigator.geolocation.getCurrentPosition(
             function(position) {
                 var lat = position.coords.latitude;
                 var lon = position.coords.longitude;
+                
+                console.log("Coordinates acquired: " + lat + ", " + lon);
                 
                 ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", 
                     {lat: lat, lon: lon}, function(data) {
@@ -209,19 +218,19 @@ function sendLocationToJarvis() {
                 );
             },
             function(error) {
-                console.warn("GPS Error: " + error.code + " - " + error.message);
-                // Sir, if the J1 takes too long, we use this fallback
+                // If it still times out, Jarvis will log it but won't crash
                 if (error.code === error.TIMEOUT) {
-                    console.log("GPS Timeout. Retrying with lower accuracy...");
-                    // Try one more time with low accuracy (faster for old phones)
-                    navigator.geolocation.getCurrentPosition(function(pos){
-                        ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", {lat: pos.coords.latitude, lon: pos.coords.longitude}, function(){});
-                    }, null, {enableHighAccuracy: false});
+                    console.warn("GPS Timeout: Hardware took too long. Sir, the link is unstable.");
+                } else {
+                    console.error("GPS Error: " + error.message);
                 }
+                // Fallback: Notify but keep the AI running
+                document.getElementById("js_res").innerText = "Jarvis: GPS Link Offline. Standing by.";
             },
-            // Increased timeout to 15 seconds because older hardware is slow
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            locationOptions
         );
+    } else {
+        console.log("Geolocation not supported by this browser.");
     }
 }
 
