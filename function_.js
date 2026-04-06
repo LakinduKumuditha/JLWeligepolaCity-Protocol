@@ -194,6 +194,29 @@ function speak(text) {
     window.speechSynthesis.speak(utterance);
 }
 
+function sendLocationToJarvis() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                var lat = position.coords.latitude;
+                var lon = position.coords.longitude;
+                
+                ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", 
+                    {lat: lat, lon: lon}, function(data) {
+                        console.log("GPS Link Established, Sir.");
+                    }
+                );
+            },
+            function(error) {
+                console.error("GPS Error: ", error.message);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    } else {
+        speak("Sir, this device does not support satellite positioning.");
+    }
+}
+
 function ajaxRequest(method, url, data, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open(method, url, true);
@@ -287,6 +310,8 @@ window.onload = function() {
             this.style.display = "none";
             document.getElementById("boot-screen").style.display = "none";
             
+            sendLocationToJarvis();
+
             var hour = new Date().getHours();
             var greeting = (hour < 12) ? "Good Morning" : (hour < 18) ? "Good Afternoon" : "Good Evening";
             speak(greeting + ", Sir. Access granted. All systems online.");
