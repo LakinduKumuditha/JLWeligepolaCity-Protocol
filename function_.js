@@ -160,7 +160,6 @@ var datasheet = [
 function loadVoices() {
     voices = window.speechSynthesis.getVoices();
 }
-
 if (window.speechSynthesis.onvoiceschanged !== undefined) {
     window.speechSynthesis.onvoiceschanged = loadVoices;
 }
@@ -175,25 +174,21 @@ function speak(text) {
     var statusLabel = document.getElementById("js_res");
     if(statusLabel) statusLabel.innerText = "Jarvis: " + text;
 
-    if (recognition) {
-        try { recognition.stop(); } catch(e) {}
-    }
+    // Stop listening while Jarvis is talking
+    if (recognition) { try { recognition.abort(); } catch(e) {} }
 
     window.speechSynthesis.cancel(); 
     var utterance = new SpeechSynthesisUtterance(text);
     
-    var femaleVoice = voices.filter(function(v) { 
-        return v.name.indexOf('Female') > -1 || v.name.indexOf('UK') > -1 || v.name.indexOf('Google') > -1; 
-    })[0];
-
-    if (femaleVoice) utterance.voice = femaleVoice;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.1; 
+    // Pick a sophisticated voice
+    var jarvisVoice = voices.find(v => v.name.includes('UK English Male') || v.name.includes('Google UK')) || voices[0];
+    if (jarvisVoice) utterance.voice = jarvisVoice;
+    
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0; 
     
     utterance.onend = function() {
-        setTimeout(function() {
-            if (!isProcessing) startListening();
-        }, 1500);
+        if (!isProcessing) setTimeout(startListening, 500);
     };
 
     window.speechSynthesis.speak(utterance);
@@ -204,59 +199,33 @@ function ajaxRequest(method, url, data, callback) {
     xhr.open(method, url, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-                try { callback(JSON.parse(xhr.responseText)); } catch(e) { callback(null); }
-            } else {
-                isProcessing = false;
-                startListening();
-            }
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try { callback(JSON.parse(xhr.responseText)); } catch(e) { callback(null); }
         }
     };
     xhr.send(data ? JSON.stringify(data) : null);
 }
 
-function sendLocationToJarvis() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            var lat = position.coords.latitude;
-            var lon = position.coords.longitude;
-            
-            ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_location", 
-                {lat: lat, lon: lon}, function(data) {
-                    console.log("Location updated, Sir.");
-                }
-            );
-        });
-    }
-}
-
 function handleLogic(query) {
-    var transcript = query.toLowerCase().replace(/[!?.,@#]/g, "").trim();
-    
-    if (transcript.indexOf("wake up pc") !== -1 || transcript.indexOf("turn on workstation") !== -1) {
-        triggerWakeUp();
-        return;
-    }
-
+    var transcript = query.toLowerCase().trim();
     var response = null;
+
+    // Local Datasheet Search
     for (var i = 0; i < datasheet.length; i++) {
-        var entry = datasheet[i];
-        for (var q = 0; q < entry.questions.length; q++) {
-            if (transcript.indexOf(entry.questions[q]) !== -1) {
-                response = entry.responses[Math.floor(Math.random() * entry.responses.length)];
+        for (var q = 0; q < datasheet[i].questions.length; q++) {
+            if (transcript.includes(datasheet[i].questions[q])) {
+                response = datasheet[i].responses[Math.floor(Math.random() * datasheet[i].responses.length)];
                 break;
             }
         }
-        if (response) break;
     }
 
     if (response) {
         speak(response);
     } else {
+        // Hand off to PythonAnywhere Cloud
         isProcessing = true;
-        var statusLabel = document.getElementById("js_res");
-        if(statusLabel) statusLabel.innerText = "Jarvis: Transmitting to Cloud...";
+        document.getElementById("js_res").innerText = "Jarvis: Consulting Sith-ka-lu AI...";
         ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/send_command", {command: transcript}, function() {
             pollForResponse();
         });
@@ -268,63 +237,43 @@ function pollForResponse() {
     ajaxRequest("GET", "https://lakinduKumuditha.pythonanywhere.com/get_response", null, function(data) {
         if (data && data.command && data.command !== "none" && data.command !== "processing...") {
             isProcessing = false;
-            if (data.command.trim() !== "false") {
-                speak(data.command);
-            }
+            speak(data.command);
             ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/update_jarvis", {text: "none"}, function(){});
         } else {
-            setTimeout(pollForResponse, 3000);
+            setTimeout(pollForResponse, 2000);
         }
-    });
-}
-
-function triggerWakeUp() {
-    var reactor = document.getElementById("arc-reactor");
-    if(reactor) reactor.style.filter = "hue-rotate(180deg) brightness(2)";
-    speak("Initiating local wake-on-LAN protocol. Powering up the workstation, Sir.");
-
-    ajaxRequest("GET", LOCAL_SERVER_IP + "/wake", null, function(data) {
-        if(data && data.status === "Success") {
-            speak("Workstation is online, Sir.");
-        }
-        setTimeout(function() { if(reactor) reactor.style.filter = "none"; }, 3000);
     });
 }
 
 function startListening() {
     var status = document.getElementById("js_res");
-    var SpeechRecognition = window.SpeechRecognition || 
-                            window.webkitSpeechRecognition || 
-                            window.mozSpeechRecognition || 
-                            window.msSpeechRecognition;
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-        if(status) status.innerText = "Speech not supported.";
+        status.innerText = "Error: Browser Incompatible.";
         return;
     }
 
     if (!recognition) {
         recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
-        recognition.continuous = false; 
+        recognition.continuous = false;
 
         recognition.onstart = function() {
-            if(status) status.innerText = "Listening...";
-            var reactor = document.getElementById("arc-reactor");
-            if(reactor) reactor.className = "active-pulse";
+            status.innerText = "Listening...";
+            document.getElementById("arc-reactor").classList.add("active-pulse");
         };
 
         recognition.onresult = function(event) {
             var transcript = event.results[0][0].transcript;
-            if(status) status.innerText = "You: " + transcript;
+            document.getElementById("js_res").innerText = "You: " + transcript;
             handleLogic(transcript);
         };
 
         recognition.onend = function() {
-            var reactor = document.getElementById("arc-reactor");
-            if(reactor) reactor.className = "";
+            document.getElementById("arc-reactor").classList.remove("active-pulse");
             if (!isProcessing && !window.speechSynthesis.speaking) {
-                setTimeout(startListening, 1000);
+                setTimeout(startListening, 600);
             }
         };
     }
@@ -332,26 +281,17 @@ function startListening() {
 }
 
 window.onload = function() {
-    var initBtn = document.getElementById("init-button");
-    initBtn.onclick = function() {
-        var accessCode = prompt("Biometric Scan Required. Enter Passcode:");
+    document.getElementById("init-button").onclick = function() {
+        var accessCode = prompt("Biometric Scan Required:");
         if (accessCode === "jarvis197777911981@@") {
-            initBtn.style.display = "none";
-            var bootScreen = document.getElementById("boot-screen");
-            if(bootScreen) bootScreen.style.display = "none";
-
-            sendLocationToJarvis();
+            this.style.display = "none";
+            document.getElementById("boot-screen").style.display = "none";
             
             var hour = new Date().getHours();
-            var msg = (hour < 12) ? "Good Morning" : (hour < 16) ? "Good Afternoon" : (hour < 18) ? "Good Evening": "Good Night";
-            speak(msg + ", Sir. Access granted. All systems are online.");
-            
+            var greeting = (hour < 12) ? "Good Morning" : (hour < 18) ? "Good Afternoon" : "Good Evening";
+            speak(greeting + ", Sir. Access granted. All systems online.");
         } else {
             alert("Access Denied.");
         }
     };
 };
-
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service_worker.js');
-}
