@@ -2,13 +2,14 @@ var recognition;
 var voices = [];
 var LOCAL_SERVER_IP = "http://192.168.1.10:3000";
 var isProcessing = false;
+var name_robot = "Buddy"
 
 var datasheet = [
     {
         questions: ["who are you", "what is your name", "identify yourself", "who am i speaking to", "your name"],
         responses: [
-            "I am Jarvis Sir, Your Private AI assistant.",
-            "My name is Jarvis Sir. I am at your service.",
+            "I am "+ name_robot + " Sir, Your Private AI assistant.",
+            "My name is " + name_robot + " Sir. I am at your service.",
             "I am your personal artificial intelligence, Sir."
         ]
     },
@@ -37,7 +38,7 @@ var datasheet = [
         ]
     },
     {
-        questions: ["hello", "hey jarvis", "hi jarvis", "wake up", "good morning", "good afternoon"],
+        questions: ["hello", "hey " + name_robot, "hi "+name_robot, "wake up", "good morning", "good afternoon"],
         responses: [
             "At your service, Sir.",
             "Hello Sir. How may I assist you today?",
@@ -154,6 +155,15 @@ var datasheet = [
             "The speed of light is roughly 299,792 kilometers per second. I'm slightly slower.",
             "Honey never spoils. Archaeologists have found edible honey in ancient Egyptian tombs."
         ]
+    },
+    {
+        questions: ["what do you think about lakindu", "who is lakindu kumuditha", "who is lakindu"],
+        responses: [
+            "He is the creator of me",
+            "I think he is you, sir",
+            "Lakindu Kumuditha is the Inventor of me",
+            "Do you know Lakindu Kumuditha in grade 10 in 2026"
+        ]
     }
 ];
 
@@ -172,17 +182,15 @@ function speak(text) {
     }
 
     var statusLabel = document.getElementById("js_res");
-    if(statusLabel) statusLabel.innerText = "Jarvis: " + text;
+    if(statusLabel) statusLabel.innerText = name_robot+": " + text;
 
     if (recognition) { try { recognition.abort(); } catch(e) {} }
 
     window.speechSynthesis.cancel(); 
     var utterance = new SpeechSynthesisUtterance(text);
     
-    // --- FORCE FEMALE ENGINE ---
     var jarvisVoice = voices.find(function(v) {
         var name = v.name.toLowerCase();
-        // Priority 1: Specifically labeled female
         return (name.includes('female') || 
                 name.includes('woman') || 
                 name.includes('zira') ||    
@@ -191,19 +199,16 @@ function speak(text) {
                 name.includes('google uk english')) && v.lang.includes('en');
     });
 
-    // Priority 2: If no specific female, pick a UK voice (usually smoother)
     if (!jarvisVoice) {
         jarvisVoice = voices.find(v => v.name.includes('UK') && v.lang.includes('en'));
     }
 
-    // Priority 3: Last resort fallback
     if (!jarvisVoice) jarvisVoice = voices[0];
 
     if (jarvisVoice) utterance.voice = jarvisVoice;
     
-    // --- THE FEMININE PITCH-SHIFT ---
-    utterance.rate = 1.1;  // Slightly faster (more feminine trait)
-    utterance.pitch = 1.6; // <--- Higher pitch (1.6 forces it to sound like a female AI)
+    utterance.rate = 1.1; 
+    utterance.pitch = 1.6; 
     
     utterance.onend = function() {
         if (!isProcessing) setTimeout(startListening, 500);
@@ -243,7 +248,7 @@ function sendLocationToJarvis() {
                     console.error("GPS Error: " + error.message);
                 }
                 // Fallback: Notify but keep the AI running
-                document.getElementById("js_res").innerText = "Jarvis: GPS Link Offline. Standing by.";
+                document.getElementById("js_res").innerText = name_robot+": GPS Link Offline. Standing by.";
             },
             locationOptions
         );
@@ -282,7 +287,7 @@ function handleLogic(query) {
     } else {
         // Hand off to PythonAnywhere Cloud
         isProcessing = true;
-        document.getElementById("js_res").innerText = "Jarvis: Sending The request to Brain Sir";
+        document.getElementById("js_res").innerText = name_robot+": Sending The request to Brain Sir";
         ajaxRequest("POST", "https://lakinduKumuditha.pythonanywhere.com/send_command", {command: transcript}, function() {
             pollForResponse();
         });
@@ -340,7 +345,7 @@ function startListening() {
 window.onload = function() {
     document.getElementById("init-button").onclick = function() {
         var accessCode = prompt("Biometric Scan Required:");
-        if (accessCode === "jarvis197777911981@@") {
+        if (accessCode === "jarvis") {
             this.style.display = "none";
             document.getElementById("boot-screen").style.display = "none";
             
